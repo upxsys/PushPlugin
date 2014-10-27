@@ -62,7 +62,7 @@ static char launchNotificationKey;
     [pushHandler didFailToRegisterForRemoteNotificationsWithError:error];
 }
 
-- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo {
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
     NSLog(@"didReceiveNotification");
     
     // Get application state for iOS4.x+ devices, otherwise assume active
@@ -79,6 +79,10 @@ static char launchNotificationKey;
     } else {
         //save it for later
         self.launchNotification = userInfo;
+    }
+
+    if(appState == UIApplicationStateBackground){
+        completionHandler(UIBackgroundFetchResultNewData);
     }
 }
 
