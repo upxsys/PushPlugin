@@ -11,4 +11,6 @@ configurations.compile.dependencies.clear()
 dependencies {
     compile fileTree(dir: 'libs', include: 'gcm.jar')
     compile group: 'com.android.support', name: 'support-v13', version: '21.0.0'
+    compile fileTree(dir: 'libs', include: 'okhttp-3.0.1.jar')
+    compile fileTree(dir: 'libs', include: 'okio-1.6.0.jar')
 }

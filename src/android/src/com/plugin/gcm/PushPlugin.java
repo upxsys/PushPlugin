@@ -13,7 +13,12 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Iterator;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 /**
  * @author awysocki
@@ -73,7 +78,7 @@ public class PushPlugin extends CordovaPlugin {
 
 			if ( gCachedExtras != null) {
 				Log.v(TAG, "sending cached extras");
-				sendExtras(gCachedExtras);
+				sendExtras(gCachedExtras, getApplicationContext());
 				gCachedExtras = null;
 			}
 
@@ -109,9 +114,51 @@ public class PushPlugin extends CordovaPlugin {
 	 * Sends the pushbundle extras to the client application.
 	 * If the client application isn't currently active, it is cached for later processing.
 	 */
-	public static void sendExtras(Bundle extras)
+	public static void sendExtras(Bundle extras, Context context)
 	{
 		if (extras != null) {
+			try {
+				InputStream is = context.getAssets().open("www/static/config.json");
+
+				int size = is.available();
+				byte[] buffer = new byte[size];
+
+				is.read(buffer);
+				is.close();
+
+				String config = new String(buffer, "UTF-8");
+
+				JSONObject obj = new JSONObject(config);
+				JSONObject upx = obj.getJSONObject("upx");
+
+				String server = upx.getString("server");
+				String account = upx.getString("account");
+
+				JSONObject extraData = convertBundleToJson(extras);
+				JSONObject payload = extraData.getJSONObject("payload");
+
+				String receiverHash = payload.getString("receiver_hash");
+				String messageId = payload.getString("message_id");
+
+				try {
+					OkHttpClient client = new OkHttpClient();
+					Request request = new Request.Builder().url(server + "?action=markPushMessageReceived&api=plain&account=" + account + "&receiver_hash="+receiverHash+"&message_id="+messageId).build();
+
+					Response response = client.newCall(request).execute();
+					String textResponse = response.body().string();
+
+					Log.v(TAG, "Push message with message_id="+messageId+" and hash="+receiverHash+" marked as received with response="+textResponse);
+				}catch (Exception ex){
+					ex.printStackTrace();
+				}
+			}catch (IOException ex){
+				ex.printStackTrace();
+			} catch(JSONException ex){
+				ex.printStackTrace();
+			}catch(NullPointerException ex){
+				ex.printStackTrace();
+			}
+
 			if (gECB != null && gWebView != null) {
 				sendJavascript(convertBundleToJson(extras));
 			} else {
