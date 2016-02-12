@@ -201,6 +201,50 @@
 
     if (notificationMessage && self.callback)
     {
+        @try {
+            //Marking as received
+            
+            NSString *jsonString = [NSString stringWithContentsOfFile:[[NSBundle mainBundle]
+                                                                       pathForResource: @"www/static/config" ofType: @"json"] encoding:NSUTF8StringEncoding error:nil];
+            NSError* errorConfig = nil;
+            NSData *data = [jsonString dataUsingEncoding:NSUTF8StringEncoding];
+            id conf = [NSJSONSerialization JSONObjectWithData:data options:0 error:&errorConfig];
+            if(errorConfig){
+                NSLog(@"Marking as received - Error when parsing config: %@",errorConfig.localizedDescription);
+            }else{
+                id upx = [conf objectForKey:@"upx"];
+                NSString *server = [upx objectForKey:@"server"];
+                NSString *account = [upx objectForKey:@"account"];
+                
+                id extra = [notificationMessage objectForKey:@"extra"];
+                NSString *receiverHash = [extra objectForKey:@"receiver_hash"];
+                NSString *messageId = [extra objectForKey:@"message_id"];
+                
+                NSString *urlString = [NSString stringWithFormat:@"%@?action=markPushMessageReceived&api=plain&account=%@&receiver_hash=%@&message_id=%@", server, account, receiverHash, messageId];
+                
+                NSURL *url = [NSURL URLWithString:urlString];
+                NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+                NSURLResponse* response;
+                NSError* callError = nil;
+                
+                //Capturing server response
+                NSData* result = [NSURLConnection sendSynchronousRequest:request  returningResponse:&response error:&callError];
+                if(callError){
+                    NSLog(@"Marking as received - Error when calling server: %@",callError.localizedDescription);
+                }else{
+                    NSString *responseString = [[NSString alloc] initWithData:result encoding:NSUTF8StringEncoding];
+                    NSLog(@"Push message with message_id=%@ and hash=%@ marked as received with response=%@", messageId, receiverHash, responseString);
+                }
+            }
+        }
+        @catch (NSException *exception) {
+            NSLog(@"Marking as received - Exception: %@", exception.name);
+        }
+        @finally {
+            
+        }
+
+
         NSMutableString *jsonStr = [NSMutableString stringWithString:@"{"];
 
         [self parseDictionary:notificationMessage intoJSON:jsonStr];
