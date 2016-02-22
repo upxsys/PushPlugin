@@ -16,7 +16,7 @@ static char launchNotificationKey;
 
 - (id) getCommandInstance:(NSString*)className
 {
-	return [self.viewController getCommandInstance:className];
+    return [self.viewController getCommandInstance:className];
 }
 
 // its dangerous to override a method from within a category.
@@ -32,24 +32,67 @@ static char launchNotificationKey;
 
 - (AppDelegate *)swizzled_init
 {
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(createNotificationChecker:)
-               name:@"UIApplicationDidFinishLaunchingNotification" object:nil];
-	
-	// This actually calls the original init method over in AppDelegate. Equivilent to calling super
-	// on an overrided method, this is not recursive, although it appears that way. neat huh?
-	return [self swizzled_init];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(createNotificationChecker:)
+                                                 name:@"UIApplicationDidFinishLaunchingNotification" object:nil];
+    
+    // This actually calls the original init method over in AppDelegate. Equivilent to calling super
+    // on an overrided method, this is not recursive, although it appears that way. neat huh?
+    return [self swizzled_init];
 }
+
+-(void)pushRegistry:(PKPushRegistry *)registry didUpdatePushCredentials:(PKPushCredentials *)credentials forType:(NSString *)type{
+    
+    //print out the VoIP token. We will use this to test the nofications.
+    NSLog(@"voip token: %@", credentials.token);
+    PushPlugin *pushHandler = [self getCommandInstance:@"PushPlugin"];
+    [pushHandler didRegisterWithToken: credentials.token.description andWithANSType:@"AVNS"];
+    
+}
+
+- (void)application:(UIApplication *)application didRegisterUserNotificationSettings:(UIUserNotificationSettings *) notificationSettings{
+    
+    //register for voip notifications
+    PKPushRegistry *voipRegistry = [[PKPushRegistry alloc] initWithQueue:dispatch_get_main_queue()];
+    voipRegistry.delegate = self;
+    voipRegistry.desiredPushTypes = [NSSet setWithObject:PKPushTypeVoIP];
+    
+}
+
+- (void)pushRegistry:(PKPushRegistry *)registry didReceiveIncomingPushWithPayload:(PKPushPayload *)payload forType:(NSString *)type
+{
+    
+    [self didReceiveMessage:payload.dictionaryPayload];
+    
+    UIApplication *application = [UIApplication sharedApplication];
+    // Get application state for iOS4.x+ devices, otherwise assume active
+    UIApplicationState appState = UIApplicationStateActive;
+    if ([application respondsToSelector:@selector(applicationState)]) {
+        appState = application.applicationState;
+    }
+    
+    if (appState == UIApplicationStateBackground) {
+        id p = [payload.dictionaryPayload objectForKey:@"aps"];
+        NSString *message = [p objectForKey:@"alert"];
+        
+        UILocalNotification *localNotification = [[UILocalNotification alloc] init];
+        localNotification.alertBody = message;
+        localNotification.applicationIconBadgeNumber = 1;
+        localNotification.soundName = UILocalNotificationDefaultSoundName;
+        [[UIApplication sharedApplication] presentLocalNotificationNow:localNotification];
+    }
+}
+
 
 // This code will be called immediately after application:didFinishLaunchingWithOptions:. We need
 // to process notifications in cold-start situations
 - (void)createNotificationChecker:(NSNotification *)notification
 {
-	if (notification)
-	{
-		NSDictionary *launchOptions = [notification userInfo];
-		if (launchOptions)
-			self.launchNotification = [launchOptions objectForKey: @"UIApplicationLaunchOptionsRemoteNotificationKey"];
-	}
+    if (notification)
+    {
+        NSDictionary *launchOptions = [notification userInfo];
+        if (launchOptions)
+            self.launchNotification = [launchOptions objectForKey: @"UIApplicationLaunchOptionsRemoteNotificationKey"];
+    }
 }
 
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
@@ -64,7 +107,17 @@ static char launchNotificationKey;
 
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
     NSLog(@"didReceiveNotification");
+    [self didReceiveMessage:userInfo];
+    completionHandler(UIBackgroundFetchResultNewData);
     
+    
+}
+
+
+- (void)didReceiveMessage:(NSDictionary *)message{
+    [self markMessageAsReceived:message];
+    
+    UIApplication *application = [UIApplication sharedApplication];
     // Get application state for iOS4.x+ devices, otherwise assume active
     UIApplicationState appState = UIApplicationStateActive;
     if ([application respondsToSelector:@selector(applicationState)]) {
@@ -73,18 +126,63 @@ static char launchNotificationKey;
     
     if (appState == UIApplicationStateActive) {
         PushPlugin *pushHandler = [self getCommandInstance:@"PushPlugin"];
-        pushHandler.notificationMessage = userInfo;
+        pushHandler.notificationMessage = message;
         pushHandler.isInline = YES;
         [pushHandler notificationReceived];
     } else {
         //save it for later
-        self.launchNotification = userInfo;
+        self.launchNotification = message;
     }
+    
+}
 
-    if(appState == UIApplicationStateBackground){
-        completionHandler(UIBackgroundFetchResultNewData);
+- (void)markMessageAsReceived:(NSDictionary *)message
+{
+    @try {
+        //Marking as received
+        
+        NSString *jsonString = [NSString stringWithContentsOfFile:[[NSBundle mainBundle]
+                                                                   pathForResource: @"www/static/config" ofType: @"json"] encoding:NSUTF8StringEncoding error:nil];
+        NSError* errorConfig = nil;
+        NSData *data = [jsonString dataUsingEncoding:NSUTF8StringEncoding];
+        id conf = [NSJSONSerialization JSONObjectWithData:data options:0 error:&errorConfig];
+        if(errorConfig){
+            NSLog(@"Marking as received - Error when parsing config: %@",errorConfig.localizedDescription);
+        }else{
+            id upx = [conf objectForKey:@"upx"];
+            NSString *server = [upx objectForKey:@"server"];
+            NSString *account = [upx objectForKey:@"account"];
+            
+            id extra = [message objectForKey:@"extra"];
+            NSString *receiverHash = [extra objectForKey:@"receiver_hash"];
+            NSString *messageId = [extra objectForKey:@"message_id"];
+            
+            NSString *urlString = [NSString stringWithFormat:@"%@?action=markPushMessageReceived&api=plain&account=%@&receiver_hash=%@&message_id=%@", server, account, receiverHash, messageId];
+            
+            NSURL *url = [NSURL URLWithString:urlString];
+            NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+            NSURLResponse* response;
+            NSError* callError = nil;
+            
+            //Capturing server response
+            NSData* result = [NSURLConnection sendSynchronousRequest:request  returningResponse:&response error:&callError];
+            if(callError){
+                NSLog(@"Marking as received - Error when calling server: %@",callError.localizedDescription);
+            }else{
+                NSString *responseString = [[NSString alloc] initWithData:result encoding:NSUTF8StringEncoding];
+                NSLog(@"Push message with message_id=%@ and hash=%@ marked as received with response=%@", messageId, receiverHash, responseString);
+                
+            }
+        }
+    }
+    @catch (NSException *exception) {
+        NSLog(@"Marking as received - Exception: %@", exception.name);
+    }
+    @finally {
+        
     }
 }
+
 
 - (void)applicationDidBecomeActive:(UIApplication *)application {
     
@@ -92,10 +190,10 @@ static char launchNotificationKey;
     
     //zero badge
     application.applicationIconBadgeNumber = 0;
-
+    
     if (self.launchNotification) {
         PushPlugin *pushHandler = [self getCommandInstance:@"PushPlugin"];
-		
+        
         pushHandler.notificationMessage = self.launchNotification;
         self.launchNotification = nil;
         [pushHandler performSelectorOnMainThread:@selector(notificationReceived) withObject:pushHandler waitUntilDone:NO];
@@ -106,7 +204,7 @@ static char launchNotificationKey;
 // http://developer.apple.com/library/ios/#documentation/cocoa/conceptual/objectivec/Chapters/ocAssociativeReferences.html
 - (NSMutableArray *)launchNotification
 {
-   return objc_getAssociatedObject(self, &launchNotificationKey);
+    return objc_getAssociatedObject(self, &launchNotificationKey);
 }
 
 - (void)setLaunchNotification:(NSDictionary *)aDictionary
@@ -116,7 +214,7 @@ static char launchNotificationKey;
 
 - (void)dealloc
 {
-    self.launchNotification	= nil; // clear the association and release the object
+    self.launchNotification = nil; // clear the association and release the object
 }
 
 @end

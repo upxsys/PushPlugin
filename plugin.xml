@@ -117,6 +117,7 @@
         </config-file>
         <config-file target="*-Info.plist" parent="UIBackgroundModes">
             <array>
+                <string>voip</string>
                 <string>remote-notification</string>
             </array>
         </config-file>
@@ -127,6 +128,7 @@
         <header-file src="src/ios/AppDelegate+notification.h" />
         <header-file src="src/ios/PushPlugin.h" />
 
+        <framework src="PushKit.framework" weak="true" />
     </platform>
 
     <!-- blackberry10 -->
