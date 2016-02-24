@@ -43,6 +43,8 @@
     [self successWithMessage:@"unregistered"];
 }
 
+
+
 - (void)register:(CDVInvokedUrlCommand*)command;
 {
     self.callbackId = command.callbackId;
@@ -54,10 +56,16 @@
     
     id iOSConfiguration = [options objectForKey:@"iOSConfigurations"];
     
+    
+    NSLog(@"Push notifications - starting registration");
     if([self isVoipCapable] && [[iOSConfiguration objectForKey:@"AVNS"] boolValue]){
+        NSLog(@"Push notifications - is Viop");
         [self registerForVoip:options];
     }else if([[iOSConfiguration objectForKey:@"APNS"] boolValue]){
+        NSLog(@"Push notifications - is Push");
         [self registerForPush:options];
+    }else{
+        NSLog(@"Push notifications - none possible");
     }
     
     
@@ -72,11 +80,13 @@
 
 - (void)registerForVoip:(NSMutableDictionary*) options
 {
+    NSLog(@"Push notifications - registering Viop - step 1/3");
     [[UIApplication sharedApplication] registerUserNotificationSettings:[UIUserNotificationSettings settingsForTypes:(UIUserNotificationTypeAlert | UIUserNotificationTypeBadge | UIUserNotificationTypeSound) categories:nil]];
 }
 
 - (void)registerForPush:(NSMutableDictionary*) options
 {
+    NSLog(@"Push notifications - registering Push");
 #if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
     UIUserNotificationType UserNotificationTypes = UIUserNotificationTypeNone;
 #endif
@@ -168,6 +178,7 @@
 
 - (void)didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
     
+    NSLog(@"Push notifications - APNS registred");
     NSMutableDictionary *results = [NSMutableDictionary dictionary];
     NSString *token = [[[[deviceToken description] stringByReplacingOccurrencesOfString:@"<"withString:@""]
                         stringByReplacingOccurrencesOfString:@">" withString:@""]
@@ -217,6 +228,7 @@
 
 - (void) didRegisterWithToken:(NSString *)token andWithANSType:(NSString *) ANSType
 {
+    NSLog(@"Push notifications - Token is: %@", token);
     NSString *tokenFormatted = [[[token stringByReplacingOccurrencesOfString:@"<"withString:@""]
                                  stringByReplacingOccurrencesOfString:@">" withString:@""]
                                 stringByReplacingOccurrencesOfString: @" " withString: @""];
@@ -295,6 +307,7 @@
 }
 -(void)successWithMessage:(NSString *)message
 {
+    NSLog(@"Push notifications - Successful");
     if (self.callbackId != nil)
     {
         CDVPluginResult *commandResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:message];
@@ -304,6 +317,7 @@
 
 -(void)failWithMessage:(NSString *)message withError:(NSError *)error
 {
+    NSLog(@"Push notifications - Failed");
     NSString        *errorMessage = (error) ? [NSString stringWithFormat:@"%@ - %@", message, [error localizedDescription]] : message;
     CDVPluginResult *commandResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:errorMessage];
     

@@ -21,6 +21,7 @@
 - (void)pushRegistry:(PKPushRegistry *)registry didUpdatePushCredentials:(PKPushCredentials *)credentials forType:(NSString *)type;
 - (void)application:(UIApplication *)application didRegisterUserNotificationSettings:(UIUserNotificationSettings *) notificationSettings;
 
+
 @property (nonatomic, retain) NSDictionary	*launchNotification;
 
 @end

@@ -43,7 +43,7 @@ static char launchNotificationKey;
 -(void)pushRegistry:(PKPushRegistry *)registry didUpdatePushCredentials:(PKPushCredentials *)credentials forType:(NSString *)type{
     
     //print out the VoIP token. We will use this to test the nofications.
-    NSLog(@"voip token: %@", credentials.token);
+    NSLog(@"Push notifications - AVNS registred");
     PushPlugin *pushHandler = [self getCommandInstance:@"PushPlugin"];
     [pushHandler didRegisterWithToken: credentials.token.description andWithANSType:@"AVNS"];
     
@@ -51,10 +51,12 @@ static char launchNotificationKey;
 
 - (void)application:(UIApplication *)application didRegisterUserNotificationSettings:(UIUserNotificationSettings *) notificationSettings{
     
+    NSLog(@"Push notifications - registering Viop - step 2/3");
     //register for voip notifications
     PKPushRegistry *voipRegistry = [[PKPushRegistry alloc] initWithQueue:dispatch_get_main_queue()];
     voipRegistry.delegate = self;
     voipRegistry.desiredPushTypes = [NSSet setWithObject:PKPushTypeVoIP];
+    NSLog(@"Push notifications - registering Viop - step 3/3");
     
 }
 
