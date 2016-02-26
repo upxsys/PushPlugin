@@ -263,7 +263,10 @@
         NSLog(@"Msg: %@", jsonStr);
         
         NSString * jsCallBack = [NSString stringWithFormat:@"%@(%@);", self.callback, jsonStr];
-        [self.webView stringByEvaluatingJavaScriptFromString:jsCallBack];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self.webView stringByEvaluatingJavaScriptFromString:jsCallBack];
+        });
+        
         
         self.notificationMessage = nil;
     }
