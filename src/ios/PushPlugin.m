@@ -263,9 +263,7 @@
         NSLog(@"Msg: %@", jsonStr);
         
         NSString * jsCallBack = [NSString stringWithFormat:@"%@(%@);", self.callback, jsonStr];
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self.webView stringByEvaluatingJavaScriptFromString:jsCallBack];
-        });
+       
         if ([self.webView respondsToSelector:@selector(stringByEvaluatingJavaScriptFromString:)]) {
             // Cordova-iOS pre-4
             [self.webView performSelectorOnMainThread:@selector(stringByEvaluatingJavaScriptFromString:) withObject:jsCallBack waitUntilDone:NO];
