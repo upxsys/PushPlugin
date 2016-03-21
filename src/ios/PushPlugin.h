@@ -56,4 +56,10 @@
 
 - (void) didRegisterWithToken:(NSString *)token andWithANSType:(NSString *) ANSType;
 
+- (void)connectToVOIPServer:(NSString *)server andPort:(NSString *) port;
+@property (nonatomic, strong) NSInputStream *inputStream;
+@property (nonatomic, strong) NSOutputStream *outputStream;
+@property (nonatomic, strong) NSMutableString *communicationLog;
+@property (nonatomic) BOOL sentPing;
+
 @end

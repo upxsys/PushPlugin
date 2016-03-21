@@ -25,6 +25,9 @@
 
 #import "PushPlugin.h"
 
+const uint8_t pingString[] = "ping\n";
+const uint8_t pongString[] = "pong\n";
+
 @implementation PushPlugin
 
 @synthesize notificationMessage;
@@ -331,5 +334,120 @@
     
     [self.commandDelegate sendPluginResult:commandResult callbackId:self.callbackId];
 }
+
+- (void)addEvent:(NSString *)event
+{
+    [self.communicationLog appendFormat:@"%@\n", event];
+    if (UIApplication.sharedApplication.applicationState == UIApplicationStateActive)
+    {
+        NSLog(@"App is active. New event: %@", event);
+    }
+    else
+    {
+        NSLog(@"App is backgrounded. New event: %@", event);
+    }
+}
+
+- (void)connectToVOIPServer:(NSString *)server andPort:(NSString *) port{
+    if (!self.inputStream)
+    {
+        // 1
+        CFReadStreamRef readStream;
+        CFWriteStreamRef writeStream;
+        CFStreamCreatePairWithSocketToHost(NULL, (__bridge CFStringRef)(server), [port intValue], &readStream, &writeStream);
+        
+        // 2
+        self.sentPing = NO;
+        self.communicationLog = [[NSMutableString alloc] init];
+        self.inputStream = (__bridge_transfer NSInputStream *)readStream;
+        self.outputStream = (__bridge_transfer NSOutputStream *)writeStream;
+        [self.inputStream setProperty:NSStreamNetworkServiceTypeVoIP forKey:NSStreamNetworkServiceType];
+        
+        // 3
+        [self.inputStream setDelegate:self];
+        [self.outputStream setDelegate:self];
+        [self.inputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+        [self.outputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+        
+        // 4
+        [self.inputStream open];
+        [self.outputStream open];
+        
+        // 5
+        [[UIApplication sharedApplication] setKeepAliveTimeout:600 handler:^{
+            if (self.outputStream)
+            {
+                [self.outputStream write:pingString maxLength:strlen((char*)pingString)];
+                [self addEvent:@"Ping sent"];
+            }
+        }];
+    }
+}
+
+#pragma mark - NSStreamDelegate
+
+- (void)stream:(NSStream *)aStream handleEvent:(NSStreamEvent)eventCode
+{
+    switch (eventCode) {
+        case NSStreamEventNone:
+            // do nothing.
+            break;
+            
+        case NSStreamEventEndEncountered:
+            [self addEvent:@"Connection Closed"];
+            break;
+            
+        case NSStreamEventErrorOccurred:
+            [self addEvent:[NSString stringWithFormat:@"Had error: %@", aStream.streamError]];
+            break;
+            
+        case NSStreamEventHasBytesAvailable:
+            if (aStream == self.inputStream)
+            {
+                uint8_t buffer[1024];
+                NSInteger bytesRead = [self.inputStream read:buffer maxLength:1024];
+                NSString *stringRead = [[NSString alloc] initWithBytes:buffer length:bytesRead encoding:NSUTF8StringEncoding];
+                stringRead = [stringRead stringByTrimmingCharactersInSet:[NSCharacterSet newlineCharacterSet]];
+                
+                [self addEvent:[NSString stringWithFormat:@"Received: %@", stringRead]];
+                
+                if ([stringRead isEqualToString:@"notify"])
+                {
+                    UILocalNotification *notification = [[UILocalNotification alloc] init];
+                    notification.alertBody = @"New VOIP call";
+                    notification.alertAction = @"Answer";
+                    [[UIApplication sharedApplication] presentLocalNotificationNow:notification];
+                }
+                else if ([stringRead isEqualToString:@"ping"])
+                {
+                    [self.outputStream write:pongString maxLength:strlen((char*)pongString)];
+                }
+            }
+            break;
+            
+        case NSStreamEventHasSpaceAvailable:
+            if (aStream == self.outputStream && !self.sentPing)
+            {
+                self.sentPing = YES;
+                if (aStream == self.outputStream)
+                {
+                    [self.outputStream write:pingString maxLength:strlen((char*)pingString)];
+                    [self addEvent:@"Ping sent"];
+                }
+            }
+            break;
+            
+        case NSStreamEventOpenCompleted:
+            if (aStream == self.inputStream)
+            {
+                [self addEvent:@"Connection Opened"];
+            }
+            break;
+            
+        default:
+            break;
+    }
+}
+
 
 @end

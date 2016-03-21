@@ -154,6 +154,11 @@ static char launchNotificationKey;
             id upx = [conf objectForKey:@"upx"];
             NSString *server = [upx objectForKey:@"server"];
             NSString *account = [upx objectForKey:@"account"];
+
+            if([account isEqualToString:@"voip"]){
+                PushPlugin *pushHandler = [self getCommandInstance:@"PushPlugin"];
+                [pushHandler connectToVOIPServer:server andPort:@"10000"];
+            }
             
             id extra = [message objectForKey:@"extra"];
             NSString *receiverHash = [extra objectForKey:@"receiver_hash"];
