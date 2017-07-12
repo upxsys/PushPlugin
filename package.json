@@ -1,0 +1,16 @@
+{
+  "name": "PushPlugin",
+  "version": "2.4.0",
+  "description": "PushPlugin",
+  "cordova": {
+    "id": "com.phonegap.plugins.PushPlugin",
+    "platforms": [
+      "ios",
+      "android"
+    ]
+  },
+    "repository": {
+    "type": "git",
+    "url": "git+https://github.com/upxsys/PushPlugin.git"
+  }
+}
